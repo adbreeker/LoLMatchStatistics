@@ -83,7 +83,7 @@ namespace LoLScraper
 
         public void WriteHistoryEntry()
         {
-            Console.WriteLine(player.ChampionName + " " + basePlayerStatistics.kills + "/" + basePlayerStatistics.deaths + "/" + basePlayerStatistics.assists);
+            Console.WriteLine(player.ChampionName + " ("+ player.TeamPosition + ") " + basePlayerStatistics.kills + "/" + basePlayerStatistics.deaths + "/" + basePlayerStatistics.assists);
         }
 
         public void WriteBaseStatistic()

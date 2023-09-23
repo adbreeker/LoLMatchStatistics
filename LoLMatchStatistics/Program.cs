@@ -19,59 +19,83 @@ namespace LoLScraper
 
         static async Task Main(string[] args)
         {
-            try
-            {
-                summonerName = File.ReadAllText("./summonerName.txt");
-            }
-            catch(IOException e)
-            {
-                Console.WriteLine("No summoner name file! Write summoner name:");
-                summonerName = Console.ReadLine();
-                File.WriteAllText("./summonerName.txt", summonerName);
-            }
+            summonerName = GetCurrentSummonerName();
 
             List<Match> matchesHistory = await FetchMatchHistory(summonerName);
 
-            if(matchesHistory == null || matchesHistory.Count == 0)
+            MatchStatistics chosenMatch = ChooseMatchFromHistory(matchesHistory);
+
+            ManageChosenMatch(chosenMatch);
+            
+            Thread.Sleep(1000);
+        }
+
+        static string GetCurrentSummonerName()
+        {
+            string sn;
+            try
+            {
+                sn = File.ReadAllText("./summonerName.txt");
+            }
+            catch (IOException e)
+            {
+                Console.WriteLine("No summoner name file! Write summoner name:");
+                sn = Console.ReadLine();
+                File.WriteAllText("./summonerName.txt", summonerName);
+            }
+            return sn;
+        }
+
+        static MatchStatistics ChooseMatchFromHistory(List<Match> matchesHistory)
+        {
+            Console.Clear();
+
+            if (matchesHistory == null || matchesHistory.Count == 0)
             {
                 Environment.Exit(1);
             }
 
-            MatchStatistics choosenMatch;
+            MatchStatistics chosenMatch;
 
-            if(matchesHistory.Count == 1) 
+            if (matchesHistory.Count == 1)
             {
                 MatchStatistics ms = new MatchStatistics(matchesHistory[0], summonerName);
-                choosenMatch = ms;
+                chosenMatch = ms;
             }
             else
             {
-                for(int i = 0; i<matchesHistory.Count; i++) 
+                for (int i = 0; i < matchesHistory.Count; i++)
                 {
                     MatchStatistics ms = new MatchStatistics(matchesHistory[i], summonerName);
-                    Console.Write(i+1 + ". ");
+                    Console.Write(i + 1 + ". ");
                     ms.WriteHistoryEntry();
                 }
 
-                while(true)
+                while (true)
                 {
-                    Console.WriteLine("\n\nChoose game from history");
-                    int choosenIndex = Convert.ToInt32(Console.ReadLine());
-                    if(choosenIndex > 0 && choosenIndex <= matchesHistory.Count)
+                    Console.WriteLine("\n\nChoose game from history:");
+                    int chosenIndex = Convert.ToInt32(Console.ReadLine());
+                    if (chosenIndex > 0 && chosenIndex <= matchesHistory.Count)
                     {
-                        choosenMatch = new MatchStatistics(matchesHistory[choosenIndex - 1], summonerName);
+                        chosenMatch = new MatchStatistics(matchesHistory[chosenIndex - 1], summonerName);
                         break;
                     }
                 }
             }
+
+            return chosenMatch;
+            
+        }
+
+        static void ManageChosenMatch(MatchStatistics chosenMatch)
+        {
             Console.Clear();
-            choosenMatch.WriteBaseStatistic();
+            chosenMatch.WriteBaseStatistic();
 
             Console.WriteLine("Click any button to copy statistics to clipboard");
             Console.ReadKey();
-            choosenMatch.CopyBaseStats();
-            Console.WriteLine("Statistics copied! Good bye");
-            Thread.Sleep(1000);
+            chosenMatch.CopyBaseStats();
+            Console.WriteLine("\nStatistics copied! Good bye");
         }
 
         static async Task<List<Match>> FetchMatchHistory(string summonerName)
@@ -90,7 +114,12 @@ namespace LoLScraper
 
             Console.WriteLine("How many games to get?");
             int howManyMatches = Convert.ToInt32(Console.ReadLine());
-            Console.Clear();
+
+            if(howManyMatches > 20)
+            {
+                howManyMatches = 20;
+                Console.WriteLine("Maximum is 20");
+            }
 
             List<Match> matchHistory = new List<Match>();
 
@@ -125,6 +154,7 @@ namespace LoLScraper
             catch (HttpRequestException ex)
             {
                 Console.WriteLine($"Error: {ex.Message}");
+                Console.ReadKey();
             }
             return matchHistory;
         }
