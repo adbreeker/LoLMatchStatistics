@@ -88,7 +88,7 @@ namespace LoLScraper
 
         public void WriteBaseStatistic()
         {
-            Console.WriteLine("Game on: " + player.ChampionName + " (" + player.TeamPosition + ")\n-----------------------------------\n");
+            Console.WriteLine($"{summonerName}: {player.ChampionName} ({player.TeamPosition})\n-----------------------------------\n");
 
             Console.WriteLine("Kills: " + basePlayerStatistics.kills);
             Console.WriteLine("Deaths: " + basePlayerStatistics.deaths);
@@ -107,7 +107,7 @@ namespace LoLScraper
             }
             
 
-            Console.WriteLine("\n\n\n");
+            Console.WriteLine("\n\n");
         }
 
         public void CopyBaseStats()

@@ -15,36 +15,64 @@ namespace LoLScraper
 {
     class Program
     {
-        static string summonerName;
+        static List<string> summonersNames = new List<string>();
+        static string matchId;
+        //static string apiKey = "" here write your riot api key
 
         static async Task Main(string[] args)
         {
-            summonerName = GetCurrentSummonerName();
+            if(IsManualSearch())
+            {
+                Console.Clear();
+                Console.WriteLine("Write summoner name to search:");
+                summonersNames.Add(Console.ReadLine());
+                List<Match> matchesHistory = await FetchMatchHistoryFromSummoner(summonersNames[0]);
+                MatchStatistics chosenMatch = ChooseMatchFromHistory(matchesHistory);
+                ManageChosenMatch(chosenMatch);
+            }
+            else
+            {
+                summonersNames = GetSummonersNamesFromFile();
+                Match matchFromId = await FetchMatchFromId(matchId);
+                if(summonersNames.Count == 1)
+                {
+                    MatchStatistics matchStatistics = new MatchStatistics(matchFromId, summonersNames[0]);
+                    ManageChosenMatch(matchStatistics);
+                }
+                else
+                {
+                    Console.Clear();
+                    foreach(string summonerName in summonersNames) 
+                    {
+                        MatchStatistics matchStatistics = new MatchStatistics(matchFromId, summonerName);
+                        matchStatistics.WriteBaseStatistic();
+                    }
+                    Console.ReadLine();
+                }
+                
+            }
 
-            List<Match> matchesHistory = await FetchMatchHistory(summonerName);
-
-            MatchStatistics chosenMatch = ChooseMatchFromHistory(matchesHistory);
-
-            ManageChosenMatch(chosenMatch);
-            
             Thread.Sleep(1000);
         }
 
-        static string GetCurrentSummonerName()
+        static bool IsManualSearch()
         {
-            string sn;
-            try
+            Console.WriteLine("Program have 2 action options.\nBelow, enter the match id or the command \"manual\" to search for the match manually:");
+            matchId = Console.ReadLine();
+            if(matchId == "manual")
             {
-                sn = File.ReadAllText("./summonerName.txt");
+                return true;
             }
-            catch (IOException e)
+            else
             {
-                Console.WriteLine("No summoner name file! Write summoner name:");
-                sn = Console.ReadLine();
-                File.WriteAllText("./summonerName.txt", summonerName);
+                matchId = "EUN1_" + matchId;
+                return false;
             }
-            return sn;
         }
+
+        //manual searching ------------------------------------------------------------------------------------------------------------------ manual searching
+
+        
 
         static MatchStatistics ChooseMatchFromHistory(List<Match> matchesHistory)
         {
@@ -59,14 +87,14 @@ namespace LoLScraper
 
             if (matchesHistory.Count == 1)
             {
-                MatchStatistics ms = new MatchStatistics(matchesHistory[0], summonerName);
+                MatchStatistics ms = new MatchStatistics(matchesHistory[0], summonersNames[0]);
                 chosenMatch = ms;
             }
             else
             {
                 for (int i = 0; i < matchesHistory.Count; i++)
                 {
-                    MatchStatistics ms = new MatchStatistics(matchesHistory[i], summonerName);
+                    MatchStatistics ms = new MatchStatistics(matchesHistory[i], summonersNames[0]);
                     Console.Write(i + 1 + ". ");
                     ms.WriteHistoryEntry();
                 }
@@ -77,7 +105,7 @@ namespace LoLScraper
                     int chosenIndex = Convert.ToInt32(Console.ReadLine());
                     if (chosenIndex > 0 && chosenIndex <= matchesHistory.Count)
                     {
-                        chosenMatch = new MatchStatistics(matchesHistory[chosenIndex - 1], summonerName);
+                        chosenMatch = new MatchStatistics(matchesHistory[chosenIndex - 1], summonersNames[0]);
                         break;
                     }
                 }
@@ -98,7 +126,7 @@ namespace LoLScraper
             Console.WriteLine("\nStatistics copied! Good bye");
         }
 
-        static async Task<List<Match>> FetchMatchHistory(string summonerName)
+        static async Task<List<Match>> FetchMatchHistoryFromSummoner(string summonerName)
         {
             string apiKey;
             try
@@ -112,6 +140,7 @@ namespace LoLScraper
                 File.WriteAllText("./apiKey.txt", apiKey);
             }
 
+            Console.Clear();
             Console.WriteLine("How many games to get?");
             int howManyMatches = Convert.ToInt32(Console.ReadLine());
 
@@ -157,6 +186,67 @@ namespace LoLScraper
                 Console.ReadKey();
             }
             return matchHistory;
+        }
+
+        //searching by game id ------------------------------------------------------------------------------------------------------------- searching by game id
+
+        static async Task<Match> FetchMatchFromId(string matchId)
+        {
+            string apiKey;
+            try
+            {
+                apiKey = File.ReadAllText("./apiKey.txt");
+            }
+            catch (IOException e)
+            {
+                Console.WriteLine("No key file! Write api key:");
+                apiKey = Console.ReadLine();
+                File.WriteAllText("./apiKey.txt", apiKey);
+            }
+
+            Match matchFromId = new Match();
+
+            try
+            {
+                HttpClient httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Add("X-Riot-Token", apiKey);
+
+                HttpResponseMessage matchResponse = await httpClient.GetAsync($"https://europe.api.riotgames.com/lol/match/v5/matches/{matchId}");
+                matchResponse.EnsureSuccessStatusCode();
+
+                string matchString = await matchResponse.Content.ReadAsStringAsync();
+                var matchInfo = JsonConvert.DeserializeObject<Match>(matchString);
+
+                matchFromId = matchInfo;
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+                Console.ReadKey();
+            }
+            return matchFromId;
+        }
+
+        static List<string> GetSummonersNamesFromFile()
+        {
+            List<string> sn = new List<string>();
+            try
+            {
+                sn = File.ReadAllLines("./summonersNames.txt").ToList();
+            }
+            catch (IOException e)
+            {
+                Console.WriteLine("No summoners names file! How many summoners would you like to check?:");
+                int howManySummoners = int.Parse(Console.ReadLine());
+                Console.Clear();
+                for (int i = 0; i < howManySummoners; i++)
+                {
+                    Console.WriteLine($"{i + 1}.Write summoner name:");
+                    sn.Add(Console.ReadLine());
+                }
+                File.WriteAllLines("./summonersNames.txt", sn);
+            }
+            return sn;
         }
     }
 
