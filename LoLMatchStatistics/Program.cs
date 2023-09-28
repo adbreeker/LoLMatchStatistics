@@ -10,6 +10,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.IO;
 using System.Threading;
+using LoLMatchStatistics;
+using Google.Apis.Sheets.v4.Data;
 
 namespace LoLScraper
 {
@@ -17,10 +19,13 @@ namespace LoLScraper
     {
         static List<string> summonersNames = new List<string>();
         static string matchId;
-        //static string apiKey = "" here write your riot api key
+
+        static bool usePermApiKey = true;
+        static string permApiKey = ""; //here write your riot api key
 
         static async Task Main(string[] args)
         {
+            
             if(IsManualSearch())
             {
                 Console.Clear();
@@ -42,11 +47,16 @@ namespace LoLScraper
                 else
                 {
                     Console.Clear();
-                    foreach(string summonerName in summonersNames) 
+                    GoogleSApi googleSApi = new GoogleSApi();
+                    List<IList<Object>> spreadsheet = googleSApi.GetSpreasheet("A1:GZ200");
+
+                    foreach (string summonerName in summonersNames) 
                     {
                         MatchStatistics matchStatistics = new MatchStatistics(matchFromId, summonerName);
                         matchStatistics.WriteBaseStatistic();
+                        spreadsheet = FillSpreadsheetWithStatistics(spreadsheet, matchStatistics);
                     }
+                    googleSApi.UpdateSpreadsheet(spreadsheet, "A1:GZ200");
                     Console.ReadLine();
                 }
                 
@@ -129,16 +139,24 @@ namespace LoLScraper
         static async Task<List<Match>> FetchMatchHistoryFromSummoner(string summonerName)
         {
             string apiKey;
-            try
+            if(usePermApiKey)
             {
-                apiKey = File.ReadAllText("./apiKey.txt");
+                apiKey = permApiKey;
             }
-            catch(IOException e)
+            else
             {
-                Console.WriteLine("No key file! Write api key:");
-                apiKey = Console.ReadLine();
-                File.WriteAllText("./apiKey.txt", apiKey);
+                try
+                {
+                    apiKey = File.ReadAllText("./apiKey.txt");
+                }
+                catch (IOException e)
+                {
+                    Console.WriteLine("No key file! Write api key:");
+                    apiKey = Console.ReadLine();
+                    File.WriteAllText("./apiKey.txt", apiKey);
+                }
             }
+            
 
             Console.Clear();
             Console.WriteLine("How many games to get?");
@@ -193,15 +211,22 @@ namespace LoLScraper
         static async Task<Match> FetchMatchFromId(string matchId)
         {
             string apiKey;
-            try
+            if (usePermApiKey)
             {
-                apiKey = File.ReadAllText("./apiKey.txt");
+                apiKey = permApiKey;
             }
-            catch (IOException e)
+            else
             {
-                Console.WriteLine("No key file! Write api key:");
-                apiKey = Console.ReadLine();
-                File.WriteAllText("./apiKey.txt", apiKey);
+                try
+                {
+                    apiKey = File.ReadAllText("./apiKey.txt");
+                }
+                catch (IOException e)
+                {
+                    Console.WriteLine("No key file! Write api key:");
+                    apiKey = Console.ReadLine();
+                    File.WriteAllText("./apiKey.txt", apiKey);
+                }
             }
 
             Match matchFromId = new Match();
@@ -247,6 +272,47 @@ namespace LoLScraper
                 File.WriteAllLines("./summonersNames.txt", sn);
             }
             return sn;
+        }
+
+        static Tuple<int, int> GetStartingFillingPosition(List<IList<Object>> spreadsheet, string summonerName, string championName)
+        {
+            int championRow = 0;
+            int summonerCol = 0;
+
+            for(int row = 0; row < spreadsheet.Count(); row++)
+            {
+                for(int col = 0; col < spreadsheet[row].Count(); col++)
+                {
+                    if (spreadsheet[row][col].ToString() == summonerName)
+                    {
+                        summonerCol = col;
+                    }
+                    if (spreadsheet[row][col].ToString() == championName)
+                    {
+                        championRow = row;
+                    }
+                }
+            }
+
+            return new Tuple<int,int>(championRow, summonerCol);
+        }
+
+        static List<IList<Object>> FillSpreadsheetWithStatistics(List<IList<Object>> spreadsheet, MatchStatistics statistics)
+        {
+            Tuple<int, int> startingPos = GetStartingFillingPosition(spreadsheet, statistics.GetMyParticipantInfo().SummonerName, statistics.GetMyParticipantInfo().ChampionName);
+            if(startingPos.Item1 == 0 || startingPos.Item2 == 0)
+            {
+                return spreadsheet;
+            }
+            else
+            {
+                for(int i = 0; i < statistics.GetBaseStatisticsAsList().Count; i++) 
+                {
+                    spreadsheet[startingPos.Item1][startingPos.Item2+i] = statistics.GetBaseStatisticsAsList()[i];
+                }
+            }
+            
+            return spreadsheet;
         }
     }
 

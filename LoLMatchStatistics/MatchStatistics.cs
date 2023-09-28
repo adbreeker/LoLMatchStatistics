@@ -14,14 +14,14 @@ namespace LoLScraper
         Match matchInfo;
         string summonerName;
         Participant player;
-        BasePlayerStatistics basePlayerStatistics;
+        PlayerStatistics playerStatistics;
 
         public MatchStatistics(Match matchInfo, string summonerName) 
         {
             this.matchInfo = matchInfo;
             this.summonerName = summonerName;
             this.player = GetMyParticipantInfo();
-            this.basePlayerStatistics = new BasePlayerStatistics(player, this);
+            this.playerStatistics = new PlayerStatistics(player, this);
         }
 
         public Participant GetMyParticipantInfo()
@@ -81,31 +81,32 @@ namespace LoLScraper
             return (float)Math.Round(csm, 1);
         }
 
+        public float CalculateVSM()
+        {
+            float vsm = player.VisionScore / CalculateGameMinutes();
+            return (float)Math.Round(vsm, 2);
+        }
+
         public void WriteHistoryEntry()
         {
-            Console.WriteLine(player.ChampionName + " ("+ player.TeamPosition + ") " + basePlayerStatistics.kills + "/" + basePlayerStatistics.deaths + "/" + basePlayerStatistics.assists);
+            Console.WriteLine(player.ChampionName + " ("+ player.TeamPosition + ") " + playerStatistics.kills + "/" + playerStatistics.deaths + "/" + playerStatistics.assists);
         }
 
         public void WriteBaseStatistic()
         {
             Console.WriteLine($"{summonerName}: {player.ChampionName} ({player.TeamPosition})\n-----------------------------------\n");
 
-            Console.WriteLine("Kills: " + basePlayerStatistics.kills);
-            Console.WriteLine("Deaths: " + basePlayerStatistics.deaths);
-            Console.WriteLine("Assists: " + basePlayerStatistics.assists);
-            Console.WriteLine("KDA: " + basePlayerStatistics.kda);
-            Console.WriteLine("DMG/M: " + basePlayerStatistics.dmgM);
-            Console.WriteLine("Vision score: " + basePlayerStatistics.vs);
-            Console.WriteLine("Kill participation: " + basePlayerStatistics.kp + "%");
-            if(player.TeamPosition == "UTILITY")
-            {
-                Console.WriteLine("CC: " + basePlayerStatistics.cc);
-            }
-            else
-            {
-                Console.WriteLine("CS/M: " + basePlayerStatistics.csM);
-            }
-            
+            Console.WriteLine("Kills: " + playerStatistics.kills);
+            Console.WriteLine("Deaths: " + playerStatistics.deaths);
+            Console.WriteLine("Assists: " + playerStatistics.assists);
+            Console.WriteLine("KDA: " + playerStatistics.kda);
+            Console.WriteLine("DMG/M: " + playerStatistics.dmgM);
+            Console.WriteLine("DMG-T/M: " + playerStatistics.dmg_tM);
+            Console.WriteLine("DMG-O/M: " + playerStatistics.dmg_oM);
+            Console.WriteLine("VS/M: " + playerStatistics.vsM);
+            Console.WriteLine("Kill participation: " + playerStatistics.kp + "%");
+            Console.WriteLine("CS/M: " + playerStatistics.csM);
+            Console.WriteLine("CC: " + playerStatistics.cc);
 
             Console.WriteLine("\n\n");
         }
@@ -113,47 +114,100 @@ namespace LoLScraper
         public void CopyBaseStats()
         {
             string baseStatsClipboard = "";
-            baseStatsClipboard += basePlayerStatistics.kills + "\t";
-            baseStatsClipboard += basePlayerStatistics.deaths + "\t";
-            baseStatsClipboard += basePlayerStatistics.assists + "\t";
-            baseStatsClipboard += basePlayerStatistics.kda + "\t";
-            baseStatsClipboard += basePlayerStatistics.dmgM + "\t";
-            baseStatsClipboard += basePlayerStatistics.vs + "\t";
-            baseStatsClipboard += basePlayerStatistics.kp + "%\t";
-            if (player.TeamPosition == "UTILITY")
-            {
-                baseStatsClipboard += basePlayerStatistics.cc;
-            }
-            else
-            {
-                baseStatsClipboard += basePlayerStatistics.csM;
-            }
+            baseStatsClipboard += playerStatistics.kills + "\t";
+            baseStatsClipboard += playerStatistics.deaths + "\t";
+            baseStatsClipboard += playerStatistics.assists + "\t";
+            baseStatsClipboard += playerStatistics.kda + "\t";
+            baseStatsClipboard += playerStatistics.dmgM + "\t";
+            baseStatsClipboard += playerStatistics.dmg_tM + "\t";
+            baseStatsClipboard += playerStatistics.dmg_oM + "\t";
+            baseStatsClipboard += playerStatistics.vsM + "\t";
+            baseStatsClipboard += playerStatistics.kp + "%\t";
+            baseStatsClipboard += playerStatistics.csM + "\t";
+            baseStatsClipboard += playerStatistics.cc;
             Thread thread = new Thread(() => Clipboard.SetText(baseStatsClipboard));
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();
             thread.Join();
         }
+
+        float CalculateScore()
+        {
+            float score = 0;
+            if(player.TeamPosition != "UTILITY")
+            {
+                score += 1.0f * playerStatistics.kills;
+                score += -2.0f * playerStatistics.deaths;
+                score += 1.0f * playerStatistics.assists;
+            }
+            else
+            {
+                score += 0.75f * playerStatistics.kills;
+                score += -2.0f * playerStatistics.deaths;
+                score += 1.25f * playerStatistics.assists;
+            }
+
+            if(score < 0)
+            {
+                score = 0;
+            }
+
+            score += playerStatistics.dmgM / 100.0f;
+            score += playerStatistics.dmg_tM / 100.0f;
+            score += playerStatistics.dmg_oM / 100.0f;
+
+            score += playerStatistics.vsM * 3.0f;
+            score += playerStatistics.kp / 10.0f;
+            score += playerStatistics.csM;
+            score += playerStatistics.cc / 10.0f;
+
+            return (float)Math.Round(score,2);
+        }
+
+        public List<Object> GetBaseStatisticsAsList()
+        {
+            List<Object> statistics = new List<Object>
+            {
+                CalculateScore(),
+                playerStatistics.kills,
+                playerStatistics.deaths,
+                playerStatistics.assists,
+                playerStatistics.kda,
+                playerStatistics.dmgM,
+                playerStatistics.dmg_tM,
+                playerStatistics.dmg_oM,
+                playerStatistics.vsM,
+                (playerStatistics.kp.ToString() + "%"),
+                playerStatistics.csM,
+                playerStatistics.cc
+            };
+            return statistics;
+        }
     }
 
-    class BasePlayerStatistics
+    class PlayerStatistics
     {
         public int kills;
         public int deaths;
         public int assists;
         public float kda;
         public int dmgM;
-        public int vs;
+        public int dmg_tM;
+        public int dmg_oM;
+        public float vsM;
         public int kp;
         public float csM;
         public int cc;
-        public BasePlayerStatistics(Participant player, MatchStatistics ms) 
+        public PlayerStatistics(Participant player, MatchStatistics ms) 
         {
             this.kills = player.Kills;
             this.deaths = player.Deaths;
             this.assists = player.Assists;
             this.kda = ms.CalculateKDA();
             this.dmgM = (int)(player.TotalDamageDealtToChampions / ms.CalculateGameMinutes());
-            this.vs = player.VisionScore;
+            this.dmg_tM = (int)(player.DamageDealtToBuildings / ms.CalculateGameMinutes());
+            this.dmg_oM = (int)(player.DamageDealtToObjectives / ms.CalculateGameMinutes());
+            this.vsM = ms.CalculateVSM();
             this.kp = ms.CalculateKillParticipation();
             this.csM = ms.CalculateCSM();
             this.cc = player.TimeCCingOthers;
