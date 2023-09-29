@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 
-namespace LoLScraper
+namespace LoLMatchStatistics
 {
-    internal class Match
+    internal class RiotApiMatch //class to manage riot api json file
     {
         public MetaData MetaData { get; set; }
         public Info Info { get; set; }

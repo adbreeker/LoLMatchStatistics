@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
@@ -13,30 +10,37 @@ namespace LoLMatchStatistics
 {
     internal class GoogleSApi
     {
-        
-        const string credentialsPath = "./spreadsheetCredentials.json"; // Your Google Sheets API credentials JSON file path
-        string spreadsheetId = ""; // ID of the Google Sheets spreadsheet
+        string spreadsheetId = ""; //here write your spreadsheet id
 
         SheetsService sheetsService;
 
         public GoogleSApi() 
         {
-            // Initialize the Google Sheets service
-            sheetsService = InitializeSheetsService(credentialsPath);
+            string credentialsPath = "./spreadsheetCredentials.json"; //Google credentials
+            if(spreadsheetId == "")
+            {
+                try
+                {
+                    spreadsheetId = File.ReadAllText("./spreadsheetId.txt");
+                }
+                catch (IOException e)
+                {
+                    Console.WriteLine("No spreadsheet id file! Write spreadsheet id:");
+                    spreadsheetId = Console.ReadLine();
+                    File.WriteAllText("./spreadsheetId.txt", spreadsheetId);
+                    Console.Clear();
+                }
+            }
+            sheetsService = InitializeSheetsService(credentialsPath); //initialize google api service
         }
 
-        public List<IList<object>> GetSpreasheet(string range)
+        public List<IList<object>> GetSpreasheet(string range) //fetch data from spreadsheet
         {
-
-            // Define the range you want to retrieve data from (e.g., "Sheet1!A1:D10")
-
-            // Fetch data from the specified range
             IList<IList<object>> data = GetDataFromSheet(sheetsService, spreadsheetId, range);
 
-            // Store the data in a variable
             List<IList<object>> spreadsheetData = new List<IList<object>>();
 
-            // Populate data with empty strings
+            //populate data with empty strings
             for (int i = 0; i < 200; i++)
             {
                 IList<object> row = new List<object>();
@@ -47,7 +51,7 @@ namespace LoLMatchStatistics
                 spreadsheetData.Add(row);
             }
 
-            // Keep existing data
+            //keep existing data
             for (int i = 0; i < data.Count; i++)
             {
                 for (int j = 0; j < data[i].Count; j++)
@@ -59,15 +63,13 @@ namespace LoLMatchStatistics
             return spreadsheetData;
         }
 
-        public void UpdateSpreadsheet(List<IList<object>> newSpreadsheetData, string range)
+        public void UpdateSpreadsheet(List<IList<object>> newSpreadsheetData, string range) //update data in google spreadsheet
         {
-            // Tworzenie ValueRange
             ValueRange valueRange = new ValueRange
             {
                 Values = newSpreadsheetData
             };
 
-            // Aktualizacja danych w arkuszu
             SpreadsheetsResource.ValuesResource.UpdateRequest updateRequest =
                 sheetsService.Spreadsheets.Values.Update(valueRange, spreadsheetId, range);
             updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.RAW;

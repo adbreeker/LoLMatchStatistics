@@ -1,50 +1,40 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Net.Http;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System.IO;
 using System.Threading;
-using LoLMatchStatistics;
-using Google.Apis.Sheets.v4.Data;
 
-namespace LoLScraper
+namespace LoLMatchStatistics
 {
     class Program
     {
+        
         static List<string> summonersNames = new List<string>();
         static string matchId;
 
-        static bool usePermApiKey = true;
-        static string permApiKey = ""; //here write your riot api key
-
         static async Task Main(string[] args)
         {
-            
-            if(IsManualSearch())
+
+            if(IsManualSearch()) //choosing app mode - manual
             {
                 Console.Clear();
                 Console.WriteLine("Write summoner name to search:");
                 summonersNames.Add(Console.ReadLine());
-                List<Match> matchesHistory = await FetchMatchHistoryFromSummoner(summonersNames[0]);
+                List<RiotApiMatch> matchesHistory = await RiotApi.FetchMatchHistoryFromSummoner(summonersNames[0]);
                 MatchStatistics chosenMatch = ChooseMatchFromHistory(matchesHistory);
                 ManageChosenMatch(chosenMatch);
             }
-            else
+            else //choosing app mode - by id
             {
                 summonersNames = GetSummonersNamesFromFile();
-                Match matchFromId = await FetchMatchFromId(matchId);
-                if(summonersNames.Count == 1)
+                RiotApiMatch matchFromId = await RiotApi.FetchMatchFromId(matchId);
+                if(summonersNames.Count == 1) //if only one summoner then display stats and enable copying
                 {
                     MatchStatistics matchStatistics = new MatchStatistics(matchFromId, summonersNames[0]);
                     ManageChosenMatch(matchStatistics);
                 }
-                else
+                else //if more than one summoner then display stats and send them to google spreadsheet
                 {
                     Console.Clear();
                     GoogleSApi googleSApi = new GoogleSApi();
@@ -54,10 +44,13 @@ namespace LoLScraper
                     {
                         MatchStatistics matchStatistics = new MatchStatistics(matchFromId, summonerName);
                         matchStatistics.WriteBaseStatistic();
-                        spreadsheet = FillSpreadsheetWithStatistics(spreadsheet, matchStatistics);
+                        if(matchStatistics.playerFoundInGame)
+                        {
+                            spreadsheet = FillSpreadsheetWithStatistics(spreadsheet, matchStatistics);
+                        }
                     }
                     googleSApi.UpdateSpreadsheet(spreadsheet, "A1:GZ200");
-                    Console.ReadLine();
+                    Console.ReadKey();
                 }
                 
             }
@@ -65,7 +58,7 @@ namespace LoLScraper
             Thread.Sleep(1000);
         }
 
-        static bool IsManualSearch()
+        static bool IsManualSearch() //choose app mode
         {
             Console.WriteLine("Program have 2 action options.\nBelow, enter the match id or the command \"manual\" to search for the match manually:");
             matchId = Console.ReadLine();
@@ -80,11 +73,8 @@ namespace LoLScraper
             }
         }
 
-        //manual searching ------------------------------------------------------------------------------------------------------------------ manual searching
 
-        
-
-        static MatchStatistics ChooseMatchFromHistory(List<Match> matchesHistory)
+        static MatchStatistics ChooseMatchFromHistory(List<RiotApiMatch> matchesHistory)
         {
             Console.Clear();
 
@@ -125,7 +115,7 @@ namespace LoLScraper
             
         }
 
-        static void ManageChosenMatch(MatchStatistics chosenMatch)
+        static void ManageChosenMatch(MatchStatistics chosenMatch) //write stats od match and copy them after any key
         {
             Console.Clear();
             chosenMatch.WriteBaseStatistic();
@@ -136,121 +126,7 @@ namespace LoLScraper
             Console.WriteLine("\nStatistics copied! Good bye");
         }
 
-        static async Task<List<Match>> FetchMatchHistoryFromSummoner(string summonerName)
-        {
-            string apiKey;
-            if(usePermApiKey)
-            {
-                apiKey = permApiKey;
-            }
-            else
-            {
-                try
-                {
-                    apiKey = File.ReadAllText("./apiKey.txt");
-                }
-                catch (IOException e)
-                {
-                    Console.WriteLine("No key file! Write api key:");
-                    apiKey = Console.ReadLine();
-                    File.WriteAllText("./apiKey.txt", apiKey);
-                }
-            }
-            
-
-            Console.Clear();
-            Console.WriteLine("How many games to get?");
-            int howManyMatches = Convert.ToInt32(Console.ReadLine());
-
-            if(howManyMatches > 20)
-            {
-                howManyMatches = 20;
-                Console.WriteLine("Maximum is 20");
-            }
-
-            List<Match> matchHistory = new List<Match>();
-
-            try
-            {
-                HttpClient httpClient = new HttpClient();
-                httpClient.DefaultRequestHeaders.Add("X-Riot-Token", apiKey);
-
-                HttpResponseMessage summonerResponse = await httpClient.GetAsync($"https://eun1.api.riotgames.com/lol/summoner/v4/summoners/by-name/{summonerName}");
-                summonerResponse.EnsureSuccessStatusCode();
-
-                string summonerDataString = await summonerResponse.Content.ReadAsStringAsync();
-                var summonerData = JsonConvert.DeserializeObject<Summoner>(summonerDataString);
-
-                HttpResponseMessage matchesIdResponse = await httpClient.GetAsync($"https://europe.api.riotgames.com/lol/match/v5/matches/by-puuid/{summonerData.Puuid}/ids");
-                matchesIdResponse.EnsureSuccessStatusCode();
-
-                string matchesIdString = await matchesIdResponse.Content.ReadAsStringAsync();
-                var matchesIdlist = JsonConvert.DeserializeObject<List<string>>(matchesIdString);
-
-                for (int i = 0; i < howManyMatches; i++)
-                {
-                    HttpResponseMessage matchResponse = await httpClient.GetAsync($"https://europe.api.riotgames.com/lol/match/v5/matches/{matchesIdlist[i]}");
-                    matchResponse.EnsureSuccessStatusCode();
-
-                    string matchString = await matchResponse.Content.ReadAsStringAsync();
-                    var matchInfo = JsonConvert.DeserializeObject<Match>(matchString);
-
-                    matchHistory.Add(matchInfo);
-                }
-            }
-            catch (HttpRequestException ex)
-            {
-                Console.WriteLine($"Error: {ex.Message}");
-                Console.ReadKey();
-            }
-            return matchHistory;
-        }
-
-        //searching by game id ------------------------------------------------------------------------------------------------------------- searching by game id
-
-        static async Task<Match> FetchMatchFromId(string matchId)
-        {
-            string apiKey;
-            if (usePermApiKey)
-            {
-                apiKey = permApiKey;
-            }
-            else
-            {
-                try
-                {
-                    apiKey = File.ReadAllText("./apiKey.txt");
-                }
-                catch (IOException e)
-                {
-                    Console.WriteLine("No key file! Write api key:");
-                    apiKey = Console.ReadLine();
-                    File.WriteAllText("./apiKey.txt", apiKey);
-                }
-            }
-
-            Match matchFromId = new Match();
-
-            try
-            {
-                HttpClient httpClient = new HttpClient();
-                httpClient.DefaultRequestHeaders.Add("X-Riot-Token", apiKey);
-
-                HttpResponseMessage matchResponse = await httpClient.GetAsync($"https://europe.api.riotgames.com/lol/match/v5/matches/{matchId}");
-                matchResponse.EnsureSuccessStatusCode();
-
-                string matchString = await matchResponse.Content.ReadAsStringAsync();
-                var matchInfo = JsonConvert.DeserializeObject<Match>(matchString);
-
-                matchFromId = matchInfo;
-            }
-            catch (HttpRequestException ex)
-            {
-                Console.WriteLine($"Error: {ex.Message}");
-                Console.ReadKey();
-            }
-            return matchFromId;
-        }
+        
 
         static List<string> GetSummonersNamesFromFile()
         {
@@ -274,7 +150,7 @@ namespace LoLScraper
             return sn;
         }
 
-        static Tuple<int, int> GetStartingFillingPosition(List<IList<Object>> spreadsheet, string summonerName, string championName)
+        static Tuple<int, int> GetStartingFillingPosition(List<IList<Object>> spreadsheet, string summonerName, string championName) //get starting pos for filling spreadsheet with statistics
         {
             int championRow = 0;
             int summonerCol = 0;
@@ -297,7 +173,7 @@ namespace LoLScraper
             return new Tuple<int,int>(championRow, summonerCol);
         }
 
-        static List<IList<Object>> FillSpreadsheetWithStatistics(List<IList<Object>> spreadsheet, MatchStatistics statistics)
+        static List<IList<Object>> FillSpreadsheetWithStatistics(List<IList<Object>> spreadsheet, MatchStatistics statistics) //fill spreadsheet list with statistics
         {
             Tuple<int, int> startingPos = GetStartingFillingPosition(spreadsheet, statistics.GetMyParticipantInfo().SummonerName, statistics.GetMyParticipantInfo().ChampionName);
             if(startingPos.Item1 == 0 || startingPos.Item2 == 0)

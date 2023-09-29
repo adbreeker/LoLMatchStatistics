@@ -71,6 +71,7 @@
     <Compile Include="MatchStatistics.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RiotApi.cs" />
     <Compile Include="Summoner.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -1,27 +1,29 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Security.Permissions;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace LoLScraper
+namespace LoLMatchStatistics
 {
     internal class MatchStatistics
     {
-        Match matchInfo;
+        RiotApiMatch matchInfo;
         string summonerName;
         Participant player;
         PlayerStatistics playerStatistics;
 
-        public MatchStatistics(Match matchInfo, string summonerName) 
+        public bool playerFoundInGame = false; //true if player identified by summoner name was in processed match
+
+        public MatchStatistics(RiotApiMatch matchInfo, string summonerName) 
         {
             this.matchInfo = matchInfo;
             this.summonerName = summonerName;
             this.player = GetMyParticipantInfo();
-            this.playerStatistics = new PlayerStatistics(player, this);
+            if(player != null ) 
+            {
+                this.playerStatistics = new PlayerStatistics(player, this);
+                playerFoundInGame = true;
+            }
         }
 
         public Participant GetMyParticipantInfo()
@@ -34,8 +36,10 @@ namespace LoLScraper
                     return participant;
                 }
             }
-            return matchInfo.Info.Participants[0];
+            return null;
         }
+
+        //calculate some game statistics ---------------------------------------------------------------------------------------------------- calculate some game statistics
 
         public float CalculateGameMinutes()
         {
@@ -87,14 +91,60 @@ namespace LoLScraper
             return (float)Math.Round(vsm, 2);
         }
 
+        float CalculateScore()
+        {
+            float score = 0;
+            if (player.TeamPosition != "UTILITY")
+            {
+                score += 1.0f * playerStatistics.kills;
+                score += -2.0f * playerStatistics.deaths;
+                score += 1.0f * playerStatistics.assists;
+            }
+            else
+            {
+                score += 0.75f * playerStatistics.kills;
+                score += -2.0f * playerStatistics.deaths;
+                score += 1.25f * playerStatistics.assists;
+            }
+
+            if (score < 0)
+            {
+                score = 0;
+            }
+
+            score += playerStatistics.dmgM / 100.0f;
+            score += playerStatistics.dmg_tM / 100.0f;
+            score += playerStatistics.dmg_oM / 100.0f;
+
+            score += playerStatistics.vsM * 3.0f;
+            score += playerStatistics.kp / 10.0f;
+            score += playerStatistics.csM;
+            score += playerStatistics.cc / 10.0f;
+
+            return (float)Math.Round(score, 2);
+        }
+
+        //print some data -------------------------------------------------------------------------------------------------------------------------------- print some data
+
         public void WriteHistoryEntry()
         {
+            if(!playerFoundInGame)
+            {
+                return;
+            }
+
             Console.WriteLine(player.ChampionName + " ("+ player.TeamPosition + ") " + playerStatistics.kills + "/" + playerStatistics.deaths + "/" + playerStatistics.assists);
         }
 
         public void WriteBaseStatistic()
         {
-            Console.WriteLine($"{summonerName}: {player.ChampionName} ({player.TeamPosition})\n-----------------------------------\n");
+            if (!playerFoundInGame)
+            {
+                return;
+            }
+
+            Console.WriteLine($"{summonerName}: {player.ChampionName} ({player.TeamPosition})\n-----------------------------------");
+            Console.WriteLine("Score: " + CalculateScore() + "\n");
 
             Console.WriteLine("Kills: " + playerStatistics.kills);
             Console.WriteLine("Deaths: " + playerStatistics.deaths);
@@ -111,8 +161,13 @@ namespace LoLScraper
             Console.WriteLine("\n\n");
         }
 
-        public void CopyBaseStats()
+        public void CopyBaseStats() //copying stats to clipboard
         {
+            if (!playerFoundInGame)
+            {
+                return;
+            }
+
             string baseStatsClipboard = "";
             baseStatsClipboard += playerStatistics.kills + "\t";
             baseStatsClipboard += playerStatistics.deaths + "\t";
@@ -131,41 +186,15 @@ namespace LoLScraper
             thread.Join();
         }
 
-        float CalculateScore()
+        
+
+        public List<Object> GetBaseStatisticsAsList() //get statistics as list ready to use in filling google spreadsheet
         {
-            float score = 0;
-            if(player.TeamPosition != "UTILITY")
+            if (!playerFoundInGame)
             {
-                score += 1.0f * playerStatistics.kills;
-                score += -2.0f * playerStatistics.deaths;
-                score += 1.0f * playerStatistics.assists;
-            }
-            else
-            {
-                score += 0.75f * playerStatistics.kills;
-                score += -2.0f * playerStatistics.deaths;
-                score += 1.25f * playerStatistics.assists;
+                return null;
             }
 
-            if(score < 0)
-            {
-                score = 0;
-            }
-
-            score += playerStatistics.dmgM / 100.0f;
-            score += playerStatistics.dmg_tM / 100.0f;
-            score += playerStatistics.dmg_oM / 100.0f;
-
-            score += playerStatistics.vsM * 3.0f;
-            score += playerStatistics.kp / 10.0f;
-            score += playerStatistics.csM;
-            score += playerStatistics.cc / 10.0f;
-
-            return (float)Math.Round(score,2);
-        }
-
-        public List<Object> GetBaseStatisticsAsList()
-        {
             List<Object> statistics = new List<Object>
             {
                 CalculateScore(),
