@@ -114,9 +114,9 @@ namespace LoLMatchStatistics
 
             score += playerStatistics.dmgM / 100.0f;
             score += playerStatistics.dmg_tM / 100.0f;
-            score += playerStatistics.dmg_oM / 100.0f;
+            score += playerStatistics.dmg_oM / 200.0f;
 
-            score += playerStatistics.vsM * 3.0f;
+            score += playerStatistics.vsM * 3.5f;
             score += playerStatistics.kp / 10.0f;
             score += playerStatistics.csM;
             score += playerStatistics.cc / 10.0f;

@@ -163,7 +163,7 @@ namespace LoLMatchStatistics
                     {
                         summonerCol = col;
                     }
-                    if (spreadsheet[row][col].ToString() == championName)
+                    if (spreadsheet[row][col].ToString().ToLower() == championName.ToLower())
                     {
                         championRow = row;
                     }
