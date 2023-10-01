@@ -9,29 +9,10 @@ namespace LoLMatchStatistics
 {
     internal class RiotApi
     {
-        static string permApiKey = ""; //here write your riot api key
-
-        public static async Task<List<RiotApiMatch>> FetchMatchHistoryFromSummoner(string summonerName)
+        public static async Task<List<RiotApi_Match>> FetchMatchHistoryFromSummoner(string summonerName)
         {
-            string apiKey;
-            if (permApiKey != "")
-            {
-                apiKey = permApiKey;
-            }
-            else
-            {
-                try
-                {
-                    apiKey = File.ReadAllText("./apiKey.txt");
-                }
-                catch (IOException e)
-                {
-                    Console.WriteLine("No key file! Write api key:");
-                    apiKey = Console.ReadLine();
-                    File.WriteAllText("./apiKey.txt", apiKey);
-                }
-            }
 
+            string apiKey = ConfigFilesManager.GetRiotApiKey();
 
             Console.Clear();
             Console.WriteLine("How many games to get?");
@@ -43,7 +24,7 @@ namespace LoLMatchStatistics
                 Console.WriteLine("Maximum is 20");
             }
 
-            List<RiotApiMatch> matchHistory = new List<RiotApiMatch>();
+            List<RiotApi_Match> matchHistory = new List<RiotApi_Match>();
 
             try
             {
@@ -54,7 +35,7 @@ namespace LoLMatchStatistics
                 summonerResponse.EnsureSuccessStatusCode();
 
                 string summonerDataString = await summonerResponse.Content.ReadAsStringAsync();
-                var summonerData = JsonConvert.DeserializeObject<RiotApiSummoner>(summonerDataString);
+                var summonerData = JsonConvert.DeserializeObject<RiotApi_Summoner>(summonerDataString);
 
                 HttpResponseMessage matchesIdResponse = await httpClient.GetAsync($"https://europe.api.riotgames.com/lol/match/v5/matches/by-puuid/{summonerData.Puuid}/ids");
                 matchesIdResponse.EnsureSuccessStatusCode();
@@ -68,7 +49,7 @@ namespace LoLMatchStatistics
                     matchResponse.EnsureSuccessStatusCode();
 
                     string matchString = await matchResponse.Content.ReadAsStringAsync();
-                    var matchInfo = JsonConvert.DeserializeObject<RiotApiMatch>(matchString);
+                    var matchInfo = JsonConvert.DeserializeObject<RiotApi_Match>(matchString);
 
                     matchHistory.Add(matchInfo);
                 }
@@ -81,28 +62,11 @@ namespace LoLMatchStatistics
             return matchHistory;
         }
 
-        public static async Task<RiotApiMatch> FetchMatchFromId(string matchId)
+        public static async Task<RiotApi_Match> FetchMatchFromId(string matchId)
         {
-            string apiKey;
-            if (permApiKey != "")
-            {
-                apiKey = permApiKey;
-            }
-            else
-            {
-                try
-                {
-                    apiKey = File.ReadAllText("./apiKey.txt");
-                }
-                catch (IOException e)
-                {
-                    Console.WriteLine("No key file! Write api key:");
-                    apiKey = Console.ReadLine();
-                    File.WriteAllText("./apiKey.txt", apiKey);
-                }
-            }
+            string apiKey = ConfigFilesManager.GetRiotApiKey();
 
-            RiotApiMatch matchFromId = new RiotApiMatch();
+            RiotApi_Match matchFromId = new RiotApi_Match();
 
             try
             {
@@ -113,7 +77,7 @@ namespace LoLMatchStatistics
                 matchResponse.EnsureSuccessStatusCode();
 
                 string matchString = await matchResponse.Content.ReadAsStringAsync();
-                var matchInfo = JsonConvert.DeserializeObject<RiotApiMatch>(matchString);
+                var matchInfo = JsonConvert.DeserializeObject<RiotApi_Match>(matchString);
 
                 matchFromId = matchInfo;
             }

@@ -2,7 +2,7 @@
 
 namespace LoLMatchStatistics
 {
-    internal class RiotApiMatch //class to manage riot api json file
+    internal class RiotApi_Match //class to manage riot api json file
     {
         public MetaData MetaData { get; set; }
         public Info Info { get; set; }

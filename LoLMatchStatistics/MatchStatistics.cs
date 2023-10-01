@@ -7,14 +7,14 @@ namespace LoLMatchStatistics
 {
     internal class MatchStatistics
     {
-        RiotApiMatch matchInfo;
+        RiotApi_Match matchInfo;
         string summonerName;
         Participant player;
         PlayerStatistics playerStatistics;
 
         public bool playerFoundInGame = false; //true if player identified by summoner name was in processed match
 
-        public MatchStatistics(RiotApiMatch matchInfo, string summonerName) 
+        public MatchStatistics(RiotApi_Match matchInfo, string summonerName) 
         {
             this.matchInfo = matchInfo;
             this.summonerName = summonerName;

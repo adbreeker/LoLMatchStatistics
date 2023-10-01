@@ -5,33 +5,20 @@ using Google.Apis.Auth.OAuth2;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
+using Microsoft.Win32;
 
 namespace LoLMatchStatistics
 {
     internal class GoogleSApi
     {
-        string spreadsheetId = ""; //here write your spreadsheet id
+        string spreadsheetId;
 
         SheetsService sheetsService;
 
         public GoogleSApi() 
         {
-            string credentialsPath = "./spreadsheetCredentials.json"; //Google credentials
-            if(spreadsheetId == "")
-            {
-                try
-                {
-                    spreadsheetId = File.ReadAllText("./spreadsheetId.txt");
-                }
-                catch (IOException e)
-                {
-                    Console.WriteLine("No spreadsheet id file! Write spreadsheet id:");
-                    spreadsheetId = Console.ReadLine();
-                    File.WriteAllText("./spreadsheetId.txt", spreadsheetId);
-                    Console.Clear();
-                }
-            }
-            sheetsService = InitializeSheetsService(credentialsPath); //initialize google api service
+            spreadsheetId = ConfigFilesManager.GetMatchByIdConfig().SpreadsheetId;
+            sheetsService = InitializeSheetsService(); //initialize google api service
         }
 
         public List<IList<object>> GetSpreasheet(string range) //fetch data from spreadsheet
@@ -41,10 +28,10 @@ namespace LoLMatchStatistics
             List<IList<object>> spreadsheetData = new List<IList<object>>();
 
             //populate data with empty strings
-            for (int i = 0; i < 200; i++)
+            for (int i = 0; i < ParseSpreadsheetRangeToInts().Item2; i++)
             {
                 IList<object> row = new List<object>();
-                for (int j = 0; j < 200; j++)
+                for (int j = 0; j < ParseSpreadsheetRangeToInts().Item1; j++)
                 {
                     row.Add(string.Empty);
                 }
@@ -72,24 +59,18 @@ namespace LoLMatchStatistics
 
             SpreadsheetsResource.ValuesResource.UpdateRequest updateRequest =
                 sheetsService.Spreadsheets.Values.Update(valueRange, spreadsheetId, range);
-            updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.RAW;
+            updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
             UpdateValuesResponse updateResponse = updateRequest.Execute();
         }
 
-        private static SheetsService InitializeSheetsService(string credentialsPath)
+        private static SheetsService InitializeSheetsService()
         {
-            GoogleCredential credential;
-
-            using (var stream = new FileStream(credentialsPath, FileMode.Open, FileAccess.Read))
-            {
-                credential = GoogleCredential.FromStream(stream)
-                    .CreateScoped(SheetsService.Scope.Spreadsheets);
-            }
+            
 
             // Create the Google Sheets API service
             var service = new SheetsService(new BaseClientService.Initializer()
             {
-                HttpClientInitializer = credential,
+                HttpClientInitializer = ConfigFilesManager.GetGoogleCredential(),
                 ApplicationName = "LoLMatchStatistics",
             });
 
@@ -105,6 +86,44 @@ namespace LoLMatchStatistics
             IList<IList<object>> values = response.Values;
 
             return values;
+        }
+
+        Tuple<int,int> ParseSpreadsheetRangeToInts()
+        {
+            int cols = 0;
+            int rows = 0;
+            string range = ConfigFilesManager.GetMatchByIdConfig().SpreadsheetRange;
+            string[] ranges = range.Split(':');
+
+            //Calculating rows
+            int[] rangeRows = new int[2];
+            for(int i = 0; i<=1; i++)
+            {
+                foreach (char c in ranges[i])
+                {
+                    if (Char.IsDigit(c))
+                    {
+                        string[] pom = ranges[i].Split(new[] { c }, 2);
+                        ranges[i] = pom[0];
+                        rangeRows[i] = int.Parse(c.ToString() + pom[1]);
+                        break;
+                    }
+                }
+            }
+            rows = Math.Abs(rangeRows[0] - rangeRows[1]) + 1;
+
+            //Calculating columns
+            int[] rangeCols = {0, 0};
+            for (int i = 0; i<=1; i++)
+            {
+                for(int c = 0; c < ranges[i].Length ; c++)
+                {
+                    rangeCols[i] += (int)(ranges[i][ranges[i].Length - c - 1] - 64) * (int)Math.Pow(26, c); 
+                }
+            }
+            cols = Math.Abs(rangeCols[0] - rangeCols[1]) + 1;
+
+            return new Tuple<int, int>(cols, rows);
         }
     }
 }

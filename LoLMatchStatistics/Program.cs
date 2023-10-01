@@ -21,38 +21,53 @@ namespace LoLMatchStatistics
                 Console.Clear();
                 Console.WriteLine("Write summoner name to search:");
                 summonersNames.Add(Console.ReadLine());
-                List<RiotApiMatch> matchesHistory = await RiotApi.FetchMatchHistoryFromSummoner(summonersNames[0]);
+                List<RiotApi_Match> matchesHistory = await RiotApi.FetchMatchHistoryFromSummoner(summonersNames[0]);
                 MatchStatistics chosenMatch = ChooseMatchFromHistory(matchesHistory);
                 ManageChosenMatch(chosenMatch);
             }
             else //choosing app mode - by id
             {
-                summonersNames = GetSummonersNamesFromFile();
-                RiotApiMatch matchFromId = await RiotApi.FetchMatchFromId(matchId);
-                if(summonersNames.Count == 1) //if only one summoner then display stats and enable copying
-                {
-                    MatchStatistics matchStatistics = new MatchStatistics(matchFromId, summonersNames[0]);
-                    ManageChosenMatch(matchStatistics);
-                }
-                else //if more than one summoner then display stats and send them to google spreadsheet
-                {
-                    Console.Clear();
-                    GoogleSApi googleSApi = new GoogleSApi();
-                    List<IList<Object>> spreadsheet = googleSApi.GetSpreasheet("A1:GZ200");
+                summonersNames = ConfigFilesManager.GetMatchByIdConfig().SummonersNames;
+                RiotApi_Match matchFromId = await RiotApi.FetchMatchFromId(matchId);
 
-                    foreach (string summonerName in summonersNames) 
+                Console.Clear();
+
+                if(ConfigFilesManager.GetMatchByIdConfig().SaveToSpreadsheet)
+                {
+                    GoogleSApi googleSApi = new GoogleSApi();
+                    List<IList<Object>> spreadsheet = googleSApi.GetSpreasheet(ConfigFilesManager.GetMatchByIdConfig().SpreadsheetRange);
+
+                    foreach (string summonerName in summonersNames)
                     {
                         MatchStatistics matchStatistics = new MatchStatistics(matchFromId, summonerName);
                         matchStatistics.WriteBaseStatistic();
-                        if(matchStatistics.playerFoundInGame)
+                        if (matchStatistics.playerFoundInGame)
                         {
                             spreadsheet = FillSpreadsheetWithStatistics(spreadsheet, matchStatistics);
                         }
+                        else
+                        {
+                            Console.WriteLine(summonerName + " not found in this match!");
+                        }
                     }
-                    googleSApi.UpdateSpreadsheet(spreadsheet, "A1:GZ200");
-                    Console.ReadKey();
+                    googleSApi.UpdateSpreadsheet(spreadsheet, ConfigFilesManager.GetMatchByIdConfig().SpreadsheetRange);
                 }
+                else
+                {
+                    foreach (string summonerName in summonersNames)
+                    {
+                        MatchStatistics matchStatistics = new MatchStatistics(matchFromId, summonerName);
+                        matchStatistics.WriteBaseStatistic();
+                        if(!matchStatistics.playerFoundInGame) 
+                        {
+                            Console.WriteLine(summonerName + " not found in this match!");
+                        }
+                    }
+                }
+
                 
+                Console.ReadKey();
+
             }
 
             Thread.Sleep(1000);
@@ -74,7 +89,7 @@ namespace LoLMatchStatistics
         }
 
 
-        static MatchStatistics ChooseMatchFromHistory(List<RiotApiMatch> matchesHistory)
+        static MatchStatistics ChooseMatchFromHistory(List<RiotApi_Match> matchesHistory)
         {
             Console.Clear();
 
@@ -126,29 +141,6 @@ namespace LoLMatchStatistics
             Console.WriteLine("\nStatistics copied! Good bye");
         }
 
-        
-
-        static List<string> GetSummonersNamesFromFile()
-        {
-            List<string> sn = new List<string>();
-            try
-            {
-                sn = File.ReadAllLines("./summonersNames.txt").ToList();
-            }
-            catch (IOException e)
-            {
-                Console.WriteLine("No summoners names file! How many summoners would you like to check?:");
-                int howManySummoners = int.Parse(Console.ReadLine());
-                Console.Clear();
-                for (int i = 0; i < howManySummoners; i++)
-                {
-                    Console.WriteLine($"{i + 1}.Write summoner name:");
-                    sn.Add(Console.ReadLine());
-                }
-                File.WriteAllLines("./summonersNames.txt", sn);
-            }
-            return sn;
-        }
 
         static Tuple<int, int> GetStartingFillingPosition(List<IList<Object>> spreadsheet, string summonerName, string championName) //get starting pos for filling spreadsheet with statistics
         {
